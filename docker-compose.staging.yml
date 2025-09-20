@@ -1,0 +1,21 @@
+version: '3.8'
+
+services:
+  taskflow-app:
+    image: your-dockerhub-username/taskflow-app:latest
+    ports:
+      - "3001:3000"
+    environment:
+      - NODE_ENV=staging
+      - CONVEX_DEPLOYMENT=staging
+    restart: unless-stopped
+
+  nginx:
+    image: nginx:alpine
+    ports:
+      - "81:80"
+    volumes:
+      - ./nginx.staging.conf:/etc/nginx/nginx.conf
+    depends_on:
+      - taskflow-app
+    restart: unless-stopped
