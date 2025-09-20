@@ -9,7 +9,8 @@
     "dev:backend": "convex dev",
     "build": "vite build",
     "preview": "vite preview --host 0.0.0.0 --port 3000",
-    "lint": "tsc -p convex -noEmit --pretty false && tsc -p . -noEmit --pretty false && convex dev --once && vite build"
+    "lint": "tsc -p convex -noEmit --pretty false && tsc -p . -noEmit --pretty false",
+    "lint:ci": "tsc -p convex -noEmit --pretty false && tsc -p . -noEmit --pretty false && vite build"
   },
   "dependencies": {
     "@convex-dev/auth": "^0.0.80",
