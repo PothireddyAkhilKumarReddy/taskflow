@@ -25,7 +25,7 @@ services:
     ports:
       - "5000:5000"
     environment:
-      - NODE_ENV=production
+      - NODE_ENV=development
       - DB_HOST=postgres
       - DB_PORT=5432
       - DB_NAME=taskflow
@@ -43,7 +43,7 @@ services:
     ports:
       - "3000:3000"
     environment:
-      - NODE_ENV=production
+      - NODE_ENV=development
       - REACT_APP_API_URL=http://localhost:5000/api
     depends_on:
       - backend
@@ -65,18 +65,21 @@ services:
       - postgres
     restart: unless-stopped
 
-  # Nginx Reverse Proxy
-  nginx:
-    image: nginx:alpine
+  # Jenkins (for local development/testing)
+  jenkins:
+    image: jenkins/jenkins:lts
     ports:
-      - "80:80"
+      - "8081:8080"
+      - "50000:50000"
     volumes:
-      - ./nginx.conf:/etc/nginx/nginx.conf
-    depends_on:
-      - frontend
-      - backend
+      - jenkins_home:/var/jenkins_home
+      - /var/run/docker.sock:/var/run/docker.sock
+    environment:
+      - DOCKER_HOST=unix:///var/run/docker.sock
     restart: unless-stopped
+    user: root
 
 volumes:
   postgres_data:
   pgadmin_data:
+  jenkins_home:

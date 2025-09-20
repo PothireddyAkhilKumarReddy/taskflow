@@ -4,9 +4,13 @@ pipeline {
     environment {
         FRONTEND_IMAGE = 'taskflow-frontend'
         BACKEND_IMAGE = 'taskflow-backend'
+        PGADMIN_IMAGE = 'taskflow-pgadmin'
         DOCKER_TAG = "${BUILD_NUMBER}"
         REGISTRY = 'docker.io' // Docker Hub
         DOCKER_USERNAME = 'akhil1426' // Replace with your Docker Hub username
+        DB_PASSWORD = credentials('db-password')
+        JWT_SECRET = credentials('jwt-secret')
+        PGADMIN_PASSWORD = credentials('pgadmin-password')
     }
     
     stages {
@@ -69,7 +73,7 @@ pipeline {
                 script {
                     bat """
                         docker-compose up -d postgres
-                        timeout /t 30 /nobreak
+                        timeout 30
                         docker-compose exec -T postgres pg_isready -U postgres
                         docker-compose run --rm backend npm run migrate
                     """
@@ -112,13 +116,10 @@ pipeline {
             steps {
                 script {
                     bat '''
-                        timeout /t 30 /nobreak
-                        curl -f http://localhost:5000/health
-                        if %errorlevel% neq 0 exit 1
-                        curl -f http://localhost:3000
-                        if %errorlevel% neq 0 exit 1
-                        curl -f http://localhost:8080
-                        if %errorlevel% neq 0 exit 1
+                        timeout 30
+                        curl -f http://localhost:5000/health || exit 1
+                        curl -f http://localhost:3000 || exit 1
+                        curl -f http://localhost:8080 || exit 1
                     '''
                 }
             }
@@ -128,10 +129,19 @@ pipeline {
             steps {
                 script {
                     bat '''
-                        docker-compose exec -T postgres pg_isready -U postgres
-                        if %errorlevel% neq 0 exit 1
-                        docker-compose exec -T postgres psql -U postgres -d taskflow -c "SELECT 1;"
-                        if %errorlevel% neq 0 exit 1
+                        docker-compose exec -T postgres pg_isready -U postgres || exit 1
+                        docker-compose exec -T postgres psql -U postgres -d taskflow -c "SELECT 1;" || exit 1
+                    '''
+                }
+            }
+        }
+        
+        stage('pgAdmin Health Check') {
+            steps {
+                script {
+                    bat '''
+                        curl -f http://localhost:8080/misc/ping || exit 1
+                        echo "pgAdmin is healthy and accessible"
                     '''
                 }
             }
@@ -145,10 +155,42 @@ pipeline {
         success {
             echo 'Pipeline succeeded!'
             // Add notification logic here (Slack, email, etc.)
+            script {
+                def message = """
+                ✅ TaskFlow Deployment Successful!
+                
+                🌐 Application URLs:
+                - Frontend: http://localhost:3000
+                - Backend API: http://localhost:5000
+                - pgAdmin: http://localhost:8080
+                
+                📊 Database:
+                - PostgreSQL: localhost:5432
+                - Database: taskflow
+                
+                🔧 pgAdmin Access:
+                - Email: admin@taskflow.com
+                - Password: [from credentials]
+                """
+                echo message
+            }
         }
         failure {
             echo 'Pipeline failed!'
             // Add notification logic here
+            script {
+                def message = """
+                ❌ TaskFlow Deployment Failed!
+                
+                Please check the Jenkins logs for details.
+                Common issues:
+                - Database connection problems
+                - Docker image build failures
+                - Port conflicts
+                - Missing environment variables
+                """
+                echo message
+            }
         }
     }
 }

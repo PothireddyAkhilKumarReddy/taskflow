@@ -7,6 +7,8 @@ pipeline {
         DOCKER_TAG = "${BUILD_NUMBER}"
         REGISTRY = 'docker.io' // Docker Hub
         DOCKER_USERNAME = 'akhil1426' // Replace with your Docker Hub username
+        DB_PASSWORD = credentials('db-password') // Jenkins credential for database password
+        JWT_SECRET = credentials('jwt-secret') // Jenkins credential for JWT secret
     }
     
     stages {
@@ -20,6 +22,7 @@ pipeline {
             steps {
                 script {
                     bat 'npm ci'
+                    bat 'cd backend && npm ci'
                 }
             }
         }
@@ -36,6 +39,14 @@ pipeline {
             steps {
                 script {
                     bat 'npm run build'
+                }
+            }
+        }
+        
+        stage('Database Migration') {
+            steps {
+                script {
+                    bat 'cd backend && npm run migrate'
                 }
             }
         }
@@ -60,19 +71,6 @@ pipeline {
                         backendImage.push()
                         backendImage.push('latest')
                     }
-                }
-            }
-        }
-        
-        stage('Database Migration') {
-            steps {
-                script {
-                    bat """
-                        docker-compose up -d postgres
-                        timeout /t 30 /nobreak
-                        docker-compose exec -T postgres pg_isready -U postgres
-                        docker-compose run --rm backend npm run migrate
-                    """
                 }
             }
         }
@@ -112,13 +110,9 @@ pipeline {
             steps {
                 script {
                     bat '''
-                        timeout /t 30 /nobreak
-                        curl -f http://localhost:5000/health
-                        if %errorlevel% neq 0 exit 1
-                        curl -f http://localhost:3000
-                        if %errorlevel% neq 0 exit 1
-                        curl -f http://localhost:8080
-                        if %errorlevel% neq 0 exit 1
+                        timeout 30
+                        curl -f http://localhost:5000/health || exit 1
+                        curl -f http://localhost:3000 || exit 1
                     '''
                 }
             }
@@ -128,10 +122,8 @@ pipeline {
             steps {
                 script {
                     bat '''
-                        docker-compose exec -T postgres pg_isready -U postgres
-                        if %errorlevel% neq 0 exit 1
-                        docker-compose exec -T postgres psql -U postgres -d taskflow -c "SELECT 1;"
-                        if %errorlevel% neq 0 exit 1
+                        timeout 30
+                        docker exec $(docker ps -q -f name=postgres) pg_isready -U postgres || exit 1
                     '''
                 }
             }
